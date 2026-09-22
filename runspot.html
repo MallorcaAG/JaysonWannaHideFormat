@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Fucking JSON Runspot Spawn JSON parcer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <div class="container">
+        <div class="nav-bar">
+            <a href="pickup.html" class="nav-btn">PICKUP JSON Formatter</a>
+            <a href="lootbox.html" class="nav-btn">Lootbox JSON Formatter</a>
+        </div>
+
+        <h2>The Fucking JSON Runspot Spawn JSON parcer</h2>
+
+        <div class="form-group">
+            <label for="assetID">assetID:</label>
+            <input type="number" id="assetID" value="1001" placeholder="e.g. 1001">
+        </div>
+
+        <div class="form-group">
+            <label for="transform">transform (JSON):</label>
+            <textarea id="transform" placeholder="Paste transform JSON(s) here...">{
+	"Tagged": [
+		[
+			"RelativeLocation",
+			"(X=-33327.000000,Y=9971.000000,Z=-13415.000000)"
+		],
+		[
+			"RelativeRotation",
+			"(Pitch=0.000000,Yaw=0.000000,Roll=0.000000)"
+		],
+		[
+			"RelativeScale3D",
+			"(X=5.000000,Y=5.000000,Z=5.000000)"
+		]
+	]
+}
+{
+	"Tagged": [
+		[
+			"RelativeLocation",
+			"(X=5612.000000,Y=-8301.000000,Z=-13415.000000)"
+		],
+		[
+			"RelativeRotation",
+			"(Pitch=0.000000,Yaw=0.000000,Roll=0.000000)"
+		],
+		[
+			"RelativeScale3D",
+			"(X=5.000000,Y=5.000000,Z=5.000000)"
+		]
+	]
+}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label>lootboxCount:</label>
+            <div class="inline-inputs">
+                <div>
+                    <label for="lootboxMin">min</label>
+                    <input type="number" id="lootboxMin" value="1" placeholder="Min">
+                </div>
+                <div>
+                    <label for="lootboxMax">max</label>
+                    <input type="number" id="lootboxMax" value="5" placeholder="Max">
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="ai-type-container">
+                <div>
+                    <label for="aiType3Id">aiType3Id:</label>
+                    <input type="number" id="aiType3Id" value="0" placeholder="e.g. 0">
+                </div>
+                <label class="checkbox-group" for="incrementAiType">
+                    <input type="checkbox" id="incrementAiType">
+                    <span>increment?</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="LootboxOrPickupSpawn">LootboxOrPickupSpawn:</label>
+            <select id="LootboxOrPickupSpawn">
+                <option value="1">1</option>
+                <option value="2">2</option>
+            </select>
+        </div>
+
+        <button class="action-btn" onclick="generateFormat()">Generate Format</button>
+
+        <div class="output-group">
+            <label>Result:</label>
+            <div id="output" class="output-box"></div>
+            <div id="error" class="error"></div>
+        </div>
+    </div>
+
+    <script>
+        function cleanNumber(val) {
+            if (val === undefined || val === null || val === '') return "0";
+            const num = Number(val);
+            return isNaN(num) ? val : String(num);
+        }
+
+        function parseVectorString(str) {
+            const cleanStr = str.replace(/[\(\)]/g, '');
+            const result = {};
+            const pairs = cleanStr.split(',');
+
+            pairs.forEach(pair => {
+                const [key, value] = pair.split('=');
+                if (key && value !== undefined) {
+                    result[key.trim()] = value.trim();
+                }
+            });
+
+            return result;
+        }
+
+        function parseMultipleJSON(rawText) {
+            const trimmed = rawText.trim();
+            if (!trimmed) return [];
+
+            try {
+                const parsed = JSON.parse(trimmed);
+                return Array.isArray(parsed) ? parsed : [parsed];
+            } catch (e) {
+                try {
+                    const wrapped = '[' + trimmed.replace(/}\s*{/g, '},{') + ']';
+                    return JSON.parse(wrapped);
+                } catch (err) {
+                    throw new Error('Invalid JSON format. Please ensure valid JSON objects are provided.');
+                }
+            }
+        }
+
+        function generateFormat() {
+            const errorDiv = document.getElementById('error');
+            const outputDiv = document.getElementById('output');
+            errorDiv.textContent = '';
+            outputDiv.textContent = '';
+
+            try {
+                const assetID = document.getElementById('assetID').value;
+                const transformRaw = document.getElementById('transform').value;
+                const lootboxMin = document.getElementById('lootboxMin').value;
+                const lootboxMax = document.getElementById('lootboxMax').value;
+                const baseAiType3Id = parseInt(document.getElementById('aiType3Id').value, 10);
+                const shouldIncrement = document.getElementById('incrementAiType').checked;
+                const spawnType = document.getElementById('LootboxOrPickupSpawn').value;
+
+                if (assetID === '' || lootboxMin === '' || lootboxMax === '' || isNaN(baseAiType3Id)) {
+                    throw new Error("Please fill in all input fields.");
+                }
+
+                const lootboxFormatted = (lootboxMin === lootboxMax) 
+                    ? lootboxMin 
+                    : `${lootboxMin}:${lootboxMax}`;
+
+                const transformList = parseMultipleJSON(transformRaw);
+
+                if (transformList.length === 0) {
+                    throw new Error("No transform data found.");
+                }
+
+                const results = [];
+
+                transformList.forEach((transformJSON, index) => {
+                    const taggedArray = transformJSON.Tagged;
+
+                    if (!Array.isArray(taggedArray)) {
+                        throw new Error(`Invalid JSON structure in object #${index + 1}: Missing "Tagged" array.`);
+                    }
+
+                    let locationData = {}, rotationData = {}, scaleData = {};
+
+                    taggedArray.forEach(item => {
+                        const key = item[0];
+                        const val = item[1];
+
+                        if (key === 'RelativeLocation') {
+                            locationData = parseVectorString(val);
+                        } else if (key === 'RelativeRotation') {
+                            rotationData = parseVectorString(val);
+                        } else if (key === 'RelativeScale3D') {
+                            scaleData = parseVectorString(val);
+                        }
+                    });
+
+                    const locX = cleanNumber(locationData.X);
+                    const locY = cleanNumber(locationData.Y);
+                    const locZ = cleanNumber(locationData.Z);
+
+                    const rotPitch = cleanNumber(rotationData.Pitch);
+                    const rotYaw = cleanNumber(rotationData.Yaw);
+                    const rotRoll = cleanNumber(rotationData.Roll);
+
+                    const scaleX = cleanNumber(scaleData.X);
+
+                    const currentAiType3Id = shouldIncrement ? (baseAiType3Id + index) : baseAiType3Id;
+
+                    const formattedString = `${assetID}_${scaleX}_${locX}_${locY}_${locZ}_${rotRoll}_${rotPitch}_${rotYaw}_${lootboxFormatted}_${currentAiType3Id}_${spawnType}`;
+                    results.push(formattedString);
+                });
+
+                outputDiv.textContent = results.join(',');
+
+            } catch (err) {
+                errorDiv.textContent = "Error: " + err.message;
+            }
+        }
+
+        window.onload = generateFormat;
+    </script>
+</body>
+</html>

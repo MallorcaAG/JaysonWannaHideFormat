@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Fucking Lootbox JSON Formatter</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <div class="container">
+        <div class="nav-bar">
+            <a href="pickup.html" class="nav-btn">PICKUP JSON Formatter</a>
+            <a href="runspot.html" class="nav-btn">Runspot Spawn JSON Parser</a>
+        </div>
+
+        <h2>The Fucking Lootbox JSON Formatter</h2>
+
+        <div class="form-group">
+            <label for="transform">transform (JSON):</label>
+            <textarea id="transform" placeholder="Paste transform JSON(s) here...">{
+	"Tagged": [
+		[
+			"RelativeLocation",
+			"(X=-33327.000000,Y=9971.000000,Z=-13415.000000)"
+		],
+		[
+			"RelativeRotation",
+			"(Pitch=0.000000,Yaw=0.000000,Roll=0.000000)"
+		],
+		[
+			"RelativeScale3D",
+			"(X=5.000000,Y=5.000000,Z=5.000000)"
+		]
+	]
+}
+{
+	"Tagged": [
+		[
+			"RelativeLocation",
+			"(X=5612.000000,Y=-8301.000000,Z=-13415.000000)"
+		],
+		[
+			"RelativeRotation",
+			"(Pitch=0.000000,Yaw=0.000000,Roll=0.000000)"
+		],
+		[
+			"RelativeScale3D",
+			"(X=5.000000,Y=5.000000,Z=5.000000)"
+		]
+	]
+}</textarea>
+        </div>
+
+        <button class="action-btn" onclick="generateFormat()">Generate Format</button>
+
+        <div class="output-group">
+            <label>Result:</label>
+            <div id="output" class="output-box"></div>
+            <div id="error" class="error"></div>
+        </div>
+    </div>
+
+    <script>
+        function cleanNumber(val) {
+            if (val === undefined || val === null || val === '') return "0";
+            const num = Number(val);
+            return isNaN(num) ? val : String(num);
+        }
+
+        function parseVectorString(str) {
+            const cleanStr = str.replace(/[\(\)]/g, '');
+            const result = {};
+            const pairs = cleanStr.split(',');
+
+            pairs.forEach(pair => {
+                const [key, value] = pair.split('=');
+                if (key && value !== undefined) {
+                    result[key.trim()] = value.trim();
+                }
+            });
+
+            return result;
+        }
+
+        function parseMultipleJSON(rawText) {
+            const trimmed = rawText.trim();
+            if (!trimmed) return [];
+
+            try {
+                const parsed = JSON.parse(trimmed);
+                return Array.isArray(parsed) ? parsed : [parsed];
+            } catch (e) {
+                try {
+                    const wrapped = '[' + trimmed.replace(/}\s*{/g, '},{') + ']';
+                    return JSON.parse(wrapped);
+                } catch (err) {
+                    throw new Error('Invalid JSON format. Please ensure valid JSON objects are provided.');
+                }
+            }
+        }
+
+        function generateFormat() {
+            const errorDiv = document.getElementById('error');
+            const outputDiv = document.getElementById('output');
+            errorDiv.textContent = '';
+            outputDiv.textContent = '';
+
+            try {
+                const transformRaw = document.getElementById('transform').value;
+                const transformList = parseMultipleJSON(transformRaw);
+
+                if (transformList.length === 0) {
+                    throw new Error("No transform data found.");
+                }
+
+                const results = [];
+
+                transformList.forEach((transformJSON, index) => {
+                    const taggedArray = transformJSON.Tagged;
+
+                    if (!Array.isArray(taggedArray)) {
+                        throw new Error(`Invalid JSON structure in object #${index + 1}: Missing "Tagged" array.`);
+                    }
+
+                    let locationData = {}, rotationData = {};
+
+                    taggedArray.forEach(item => {
+                        const key = item[0];
+                        const val = item[1];
+
+                        if (key === 'RelativeLocation') {
+                            locationData = parseVectorString(val);
+                        } else if (key === 'RelativeRotation') {
+                            rotationData = parseVectorString(val);
+                        }
+                    });
+
+                    const locX = cleanNumber(locationData.X);
+                    const locY = cleanNumber(locationData.Y);
+                    const locZ = cleanNumber(locationData.Z);
+
+                    const rotPitch = cleanNumber(rotationData.Pitch);
+                    const rotYaw = cleanNumber(rotationData.Yaw);
+                    const rotRoll = cleanNumber(rotationData.Roll);
+
+                    const formattedString = `${locX}_${locY}_${locZ}|${rotPitch}_${rotYaw}_${rotRoll}`;
+                    results.push(formattedString);
+                });
+
+                outputDiv.textContent = results.join(',');
+
+            } catch (err) {
+                errorDiv.textContent = "Error: " + err.message;
+            }
+        }
+
+        window.onload = generateFormat;
+    </script>
+</body>
+</html>
